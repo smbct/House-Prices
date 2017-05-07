@@ -1,8 +1,14 @@
-cross_validation <- function(X, Y, nfold) {
+cross_validation <- function(dataset, nfold) {
 
-    size.CV <- floor(nrow(X) / nfold)
+    # create X and Y
+    X <- dataset[,setdiff(colnames(dataset), "SalePrice")]
+    Y <- dataset[,"SalePrice"]
 
-    CV.err <- numeric(10)
+    N <- nrow(X)
+
+    size.CV <- floor(N / nfold)
+
+    CV.err <- numeric(nfold)
 
     for(i in 1:nfold) {
 
@@ -12,18 +18,19 @@ cross_validation <- function(X, Y, nfold) {
         Y.ts <- Y[i.ts]
 
         # training set, the remaining lines
-        i.tr <- setdiff(1:nrow(X), i.ts)
+        i.tr <- setdiff(1:N, i.ts)
+
         X.tr <- X[i.tr,]
         Y.tr <- Y[i.tr]
 
         DS <- cbind(X.tr, Y.tr)
 
-        model <- lm(Y.tr ~ ., DS)
+        model <- rpart(Y.tr ~ ., DS)
 
         # mean square error
         Y.hat.ts <- predict(model, X.ts)
         CV.err[i] <- mean((Y.hat.ts-Y.ts)^2)
     }
 
-    round(mean(CV.err))
+    round(mean(CV.err), digits=4)
 }
