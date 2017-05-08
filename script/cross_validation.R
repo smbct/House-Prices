@@ -25,10 +25,17 @@ cross_validation <- function(dataset, nfold) {
 
         DS <- cbind(X.tr, Y.tr)
 
-        model <- rpart(Y.tr ~ ., DS)
+        model <- lm(Y.tr ~ ., DS)
+        # model <- rpart(Y.tr ~ ., DS)
+        # model <- nnet(Y.tr ~ ., DS, size=20, linout=T)
+        # model <- lazy(Y.tr ~ ., DS)
 
         # mean square error
         Y.hat.ts <- predict(model, X.ts)
+
+        # for lazy model
+        # Y.hat.ts <- unlist(Y.hat.ts)
+
         CV.err[i] <- mean((Y.hat.ts-Y.ts)^2)
     }
 

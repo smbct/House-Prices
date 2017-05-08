@@ -20,6 +20,6 @@ replace_na <- function(vec) {
 
 scale_input <- function(dataset) {
 
-
+    
 
 }
