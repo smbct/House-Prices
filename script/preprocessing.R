@@ -19,7 +19,5 @@ replace_na <- function(vec) {
 
 
 scale_input <- function(dataset) {
-
-    
-
+    as.data.frame(scale(dataset))
 }
