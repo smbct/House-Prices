@@ -1,19 +1,19 @@
-* Content
-*
-* R
-** Getting R
+# Content
+# R
+## Getting R
 
-Documentation of function: ?function_name
+### Documentation of function:
+?function_name
 
-Packages
+### Packages
 
-Vector
+### Vector
 
 - access a line: vec_name[line] (from 1)
 - remove a line: vec_name[-line]
 - apply a function to all elements: sapply(vec_name, name) (ex: sapply(myvector, mean)
 
-Data set
+### Data set
 
 - access a column: dataset[, #colNumber] (starting from 1)
 - add a column to a dataset: cbind(dataset, new column)
@@ -23,23 +23,24 @@ Data set
 - names of the columns: colnames
 - matrix to data frame: as.data.frame
 
-Get file names in a directory
+#### Get file names in a directory
+
 	dir(path="yourPath", pattern="file pattern")
 	dir(path="../res", pattern='\\.txt$')
 
-append strings
+#### append strings
 	paste(stringA, stringB, sep="separator")
 
-create a matrix:
+#### create a matrix:
 	matrix(, nrow = 15, ncol = 0)
-sum of a col:
-	col.Sums(
-mean of a col:
+#### sum of a col:
+	col.Sums()
+#### mean of a col:
 	col.Means
-add names to columns of a matrix
+#### add names to columns of a matrix
 	colnames(mat) <- c("name1", ...)
 
-Supervised learning
+## Supervised learning
 function:   rpart (decision trees)
             lm (linear model)
             nnet (neural network)
