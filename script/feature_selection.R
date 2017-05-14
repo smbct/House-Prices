@@ -1,72 +1,107 @@
-# return a set of features to use for supervised learning
-feature_mRMR <- function(dataset) {
+
+feature_mRMR <- function(dataset, nfold) {
 
     # number of variables
-    n <- ncol(dataset) - 1
+    n <- ncol(dataset)-1
 
-    #correlation between the variables and the output
-    correlation <- abs(cor(dataset[, -(n+1)], dataset[, (n+1)]))
+    # number of examples
+    N <- nrow(dataset)
 
-    # selected variables
-    selected <- c()
+    # size of a test set
+    CV_size <- floor(N/nfold)
 
-    #candidates variables
-    candidates <- 1:n
+    error_vec <- numeric(nfold)
 
-    for (j in 1:n) {
+    for (i in 1:nfold) {
 
-        # compute the mean of the correlations between the candidates and the selected variables
-        redudancy <- numeric(length(candidates))
-        if (length(selected) > 0) {
-            correl <- cor(dataset[, selected, drop = F],
-                dataset[, candidates, drop = F])
-            redudancy <- apply(correl, 2, mean)
+        test_set_ind <- ((i-1)*CV_size+1):(i*CV_size)
+        X_test_set <- dataset[test_set_ind, -(n+1)]
+        Y_test_set <- dataset[test_set_ind, (n+1)]
+
+        train_set_ind <- setdiff(1:N, test_set_ind)
+        X_train_set <- dataset[train_set_ind, -(n+1)]
+        Y_train_set <- dataset[train_set_ind, (n+1)]
+
+        # correlation between the variables and the output
+        correlation <- abs(cor(X_train_set, Y_train_set))
+
+        # selected variables
+        selected <- c()
+
+        # candidates variables
+        candidates <- 1:n
+
+        for (j in 1:n) {
+            # compute the mean of the correlations between the candidates and the selected variables
+            redudancy <- numeric(length(candidates))
+            if (length(selected) > 0) {
+                correl <- cor(X_train_set[, selected, drop = F],
+                    X_train_set[, candidates, drop = F])
+                redudancy <- apply(correl, 2, mean)
+            }
+
+            score <- correlation[candidates] - redudancy
+
+            best <- candidates[which.max(score)]
+            selected <- c(selected, best)
+            candidates <- setdiff(candidates, best)
         }
 
-        score <- correlation[candidates] - redudancy
+        # print(selected)
 
-        best <- candidates[which.max(score)]
-        selected <- c(selected, best)
-        candidates <- setdiff(candidates, best)
+        for (nb_features in 1:n) {
+
+            DS <- cbind(X_train_set[,selected[1:nb_features], drop=F],Y_train_set)
+            model <- svm(Y_train_set ~ ., DS)
+            Y_hat <- predict(model, X_test_set[,selected[1:nb_features], drop=F])
+
+            error <- sqrt(mean((log(Y_hat)-log(Y_test_set))^2, na.rm=T))
+            print(nb_features)
+            print(error)
+        }
 
     }
 
-    print(selected)
-
-    for (nb_features in 1:n) {
-
-        DS <- cbind(dataset[,selected[1:nb_features], drop=F], prices=dataset[,(n+1)])
-        model <- svm(prices ~ ., DS)
-        Y.hat <- predict(model, dataset[,selected[1:nb_features], drop=F])
-
-        error <- sqrt(mean((log(Y.hat)-log(dataset[,(n+1)]))^2, na.rm=T))
-        print(nb_features)
-        print(error)
-    }
 }
 
-feature_corr <- function(dataset) {
+feature_corr <- function(dataset, nfold) {
 
     # number of variables
     n <- ncol(dataset) - 1
 
-    #correlation between the variables and the output
-    correlation <- abs(cor(dataset[, -(n+1)], dataset[, (n+1)]))
-    ranking <- sort(correlation, dec=T, index.return=T)$ix
+    # number of examples
+    N <- nrow(dataset)
 
-    for (nb_features in 1:n) {
+    # size of a test set
+    CV_size <- floor(N/nfold)
 
-        DS <- cbind(dataset[,ranking[1:nb_features], drop=F], prices=dataset[,(n+1)])
-        model <- svm(prices ~ ., DS)
+    # cross validation loop
+    for (i in 1:nfold) {
 
-        Y.hat <- predict(model, dataset[,ranking[1:nb_features], drop=F])
+        test_set_ind <- ((i-1)*CV_size+1):(i*CV_size)
+        X_test_set <- dataset[test_set_ind, -(n+1)]
+        Y_test_set <- dataset[test_set_ind, (n+1)]
 
-        Y.hat2 <- log(Y.hat)
-        Y2 <- log(dataset[,(n+1), drop=T])
+        train_set_ind <- setdiff(1:N, test_set_ind)
+        X_train_set <- dataset[train_set_ind, -(n+1)]
+        Y_train_set <- dataset[train_set_ind, (n+1)]
 
-        error <- sqrt(mean( ( Y.hat2 - Y2)^2, na.rm=T ))
-        print(nb_features)
-        print(error)
+        # correlation between the variables and the output
+        correlation <- abs(cor(X_train_set, Y_train_set))
+        ranking <- sort(correlation, dec=T, index.return=T)$ix
+
+        for (nb_features in 1:n) {
+
+            DS <- cbind(X_train_set[,ranking[1:nb_features], drop=F], Y_train_set)
+            model <- svm(Y_train_set ~ ., DS)
+
+            Y.hat <- predict(model, X_test_set[,ranking[1:nb_features], drop=F])
+
+            error <- sqrt(mean( ( log(Y.hat) - log(Y_test_set) )^2, na.rm=T ))
+            print(nb_features)
+            print(error)
+        }
+
     }
 
 }
@@ -76,22 +111,39 @@ feature_PCA <- function(dataset) {
     # number of variables
     n <- ncol(dataset) - 1
 
+    # number of examples
+    N <- nrow(dataset)
+
+    # size of a test set
+    CV_size <- floor(N/nfold)
+
     X_pca <- data.frame(prcomp(dataset[, -(n+1)], retx=T)$x)
-    Y <- dataset[, (n+1)]
 
-    for(nb_features in 1:n) {
+    # cross validation loop
+    for (i in 1:nfold) {
 
-        # select only few columns
-        DS<-cbind(X_pca[, 1:nb_features, drop=F], Y)
+        test_set_ind <- ((i-1)*CV_size+1):(i*CV_size)
+        X_test_set <- X_pca[test_set_ind]
+        Y_test_set <- dataset[test_set_ind, (n+1)]
 
-        model <- rpart(Y ~ ., DS)
+        train_set_ind <- setdiff(1:N, test_set_ind)
+        X_train_set <- X_pca[train_set_ind]
+        Y_train_set <- dataset[train_set_ind, (n+1)]
 
-        Y_hat <- predict(model, X_pca[,1:nb_features, drop=F])
+        for(nb_features in 1:n) {
 
-        error <- sqrt(mean( (log(Y_hat) - log(Y))^2, na.rm=T ))
-        print(nb_features)
-        print(error)
+            # select only few columns
+            DS<-cbind(X_train_set[, 1:nb_features, drop=F], Y_train_set)
 
+            model <- rpart(Y_train_set ~ ., DS)
+
+            Y_hat <- predict(model, X_train_set[,1:nb_features, drop=F])
+
+            error <- sqrt(mean( (log(Y_hat) - log(Y_test_set))^2, na.rm=T ))
+            print(nb_features)
+            print(error)
+
+        }
     }
 }
 
