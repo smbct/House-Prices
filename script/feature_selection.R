@@ -36,10 +36,10 @@ feature_mRMR <- function(dataset) {
     for (nb_features in 1:n) {
 
         DS <- cbind(dataset[,selected[1:nb_features], drop=F], prices=dataset[,(n+1)])
-        model <- rpart(prices ~ ., DS)
+        model <- svm(prices ~ ., DS)
         Y.hat <- predict(model, dataset[,selected[1:nb_features], drop=F])
 
-        error <- sqrt(mean((Y.hat-dataset[,(n+1)])^2))
+        error <- sqrt(mean((log(Y.hat)-log(dataset[,(n+1)]))^2, na.rm=T))
         print(nb_features)
         print(error)
     }
@@ -57,14 +57,14 @@ feature_corr <- function(dataset) {
     for (nb_features in 1:n) {
 
         DS <- cbind(dataset[,ranking[1:nb_features], drop=F], prices=dataset[,(n+1)])
-        model <- lm(prices ~ ., DS)
+        model <- svm(prices ~ ., DS)
 
         Y.hat <- predict(model, dataset[,ranking[1:nb_features], drop=F])
 
         Y.hat2 <- log(Y.hat)
         Y2 <- log(dataset[,(n+1), drop=T])
 
-        error <- mean( ( Y.hat2 - Y2)^2, na.rm=T )
+        error <- sqrt(mean( ( Y.hat2 - Y2)^2, na.rm=T ))
         print(nb_features)
         print(error)
     }
@@ -72,6 +72,30 @@ feature_corr <- function(dataset) {
 }
 
 feature_PCA <- function(dataset) {
+
+    # number of variables
+    n <- ncol(dataset) - 1
+
+    X_pca <- data.frame(prcomp(dataset[, -(n+1)], retx=T)$x)
+    Y <- dataset[, (n+1)]
+
+    for(nb_features in 1:n) {
+
+        # select only few columns
+        DS<-cbind(X_pca[, 1:nb_features, drop=F], Y)
+
+        model <- rpart(Y ~ ., DS)
+
+        Y_hat <- predict(model, X_pca[,1:nb_features, drop=F])
+
+        error <- sqrt(mean( (log(Y_hat) - log(Y))^2, na.rm=T ))
+        print(nb_features)
+        print(error)
+
+    }
+}
+
+feature_wrap <- function(dataset) {
 
 
 

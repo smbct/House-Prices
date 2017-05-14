@@ -25,10 +25,11 @@ cross_validation <- function(dataset, nfold) {
 
         DS <- cbind(X.tr, Y.tr)
 
-        model <- lm(Y.tr ~ ., DS)
+        # model <- lm(Y.tr ~ ., DS)
         # model <- rpart(Y.tr ~ ., DS)
-        # model <- nnet(Y.tr ~ ., DS, size=20, linout=T)
+        # model <- nnet(Y.tr ~ ., DS, size=10, linout=T)
         # model <- lazy(Y.tr ~ ., DS)
+        model <- svm(Y.tr ~ ., DS) # support vector machine (e1071)
 
         # mean square error
         Y.hat.ts <- predict(model, X.ts)
@@ -36,7 +37,7 @@ cross_validation <- function(dataset, nfold) {
         # for lazy model
         # Y.hat.ts <- unlist(Y.hat.ts)
 
-        CV.err[i] <- mean(( log(Y.hat.ts) - log(Y.ts) ) ^ 2, na.rm=T)
+        CV.err[i] <- sqrt( mean(( log(Y.hat.ts) - log(Y.ts) ) ^ 2, na.rm=T) )
     }
 
     round(mean(CV.err), digits = 4)

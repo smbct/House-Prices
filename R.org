@@ -44,3 +44,4 @@
 function:   rpart (decision trees)
             lm (linear model)
             nnet (neural network)
+            ridge (you need ridge and RcppGSL packages)
