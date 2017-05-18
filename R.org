@@ -13,8 +13,15 @@
 - remove a line: vec_name[-line]
 - apply a function to all elements: sapply(vec_name, name) (ex: sapply(myvector, mean)
 
+### Plotting
+- simple graph from data plot(x=grasp_arpd[1:30,3], y=sa_arpd[1:30,3], main="a-rpd correlation", xlab="a-rpd for GRASP", ylab="a-rpd for Simulated Annealing", col="red")
+- add points: points(x2, y2, pch=16, col="green")
+- add line: abline(myline.fit) (after linear regression for example)
+
+
 ### Data set
 
+- import a dataset: read.csv(name, header=F, sep=";")
 - access a column: dataset[, #colNumber] (starting from 1)
 - add a column to a dataset: cbind(dataset, new column)
 - rename a vector: names(vector) <- "newName"

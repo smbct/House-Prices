@@ -10,7 +10,7 @@ feature_mRMR <- function(dataset, nfold) {
     # size of a test set
     CV_size <- floor(N/nfold)
 
-    error_vec <- numeric(nfold)
+    CV_err<-matrix(0,nrow=n,ncol=nfold)
 
     for (i in 1:nfold) {
 
@@ -56,12 +56,17 @@ feature_mRMR <- function(dataset, nfold) {
             Y_hat <- predict(model, X_test_set[,selected[1:nb_features], drop=F])
 
             error <- sqrt(mean((log(Y_hat)-log(Y_test_set))^2, na.rm=T))
-            print(nb_features)
-            print(error)
+            # print(nb_features)
+            # print(error)
+
+            CV_err[nb_features, i] <- error
         }
 
+        print(i)
+        print(selected)
     }
 
+    print(paste("#Features: ",c(1:n)," ; CV error=",round(apply(CV_err,1,mean),digits=4), " ; std dev=",round(apply(CV_err,1,sd),digits=4)))
 }
 
 feature_corr <- function(dataset, nfold) {
@@ -148,7 +153,7 @@ feature_PCA <- function(dataset, nfold) {
     }
 }
 
-feature_wrap <- function(dataset, nround, nfold) {
+feature_wrap <- function(dataset, nfold) {
 
     # number of variables
     n <- ncol(dataset) - 1
@@ -161,9 +166,11 @@ feature_wrap <- function(dataset, nround, nfold) {
 
     selected <- NULL
 
-    for (round in 1:nround) {
+    for (round in 1:n) {
 
         candidates <- setdiff(1:n, selected)
+
+        CV_err <- matrix(0, nrow=length(candidates), ncol=nfold)
 
         for (j in 1:length(candidates)) {
 
@@ -179,23 +186,27 @@ feature_wrap <- function(dataset, nround, nfold) {
                 X_train_set <- dataset[train_set_ind, features_to_include]
                 Y_train_set <- dataset[train_set_ind, (n+1)]
 
-                DS <- cbind(X_train_set, Y_train_set)
-                model <- lm(Y_train_set ~ ., DS)
+                DS <- as.data.frame(cbind(X_train_set, Y_train_set))
+
+                model <- svm(Y_train_set ~ ., DS)
 
                 Y_hat <- predict(model, X_test_set)
 
                 error <- sqrt( mean( (log(Y_hat) - log(Y_test_set))^2, na.rm=T ))
 
-                print(i)
-                print(error)
+                CV_err[j, i] <- error
 
+                #print(i)
+                #print(error)
             }
-
-
         }
 
+        CV_err_mean <- apply(CV_err, 1, mean)
+        CV_err_sd <- apply(CV_err, 1, sd)
 
+        selected_current<-which.min(CV_err_mean)
+        selected<-c(selected,candidates[selected_current])
+
+        print(paste("Round ",round," ; Selected feature: ",candidates[selected_current]," ; CV error=",round(CV_err_mean[selected_current],digits=4), " ; std dev=",round(CV_err_sd[selected_current],digits=4)))
     }
-
-
 }
