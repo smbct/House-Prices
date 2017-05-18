@@ -80,6 +80,8 @@ feature_corr <- function(dataset, nfold) {
     # size of a test set
     CV_size <- floor(N/nfold)
 
+    CV_err<-matrix(0,nrow=n,ncol=nfold)
+
     # cross validation loop
     for (i in 1:nfold) {
 
@@ -105,9 +107,13 @@ feature_corr <- function(dataset, nfold) {
             error <- sqrt(mean( ( log(Y.hat) - log(Y_test_set) )^2, na.rm=T ))
             print(nb_features)
             print(error)
+
+            CV_err[nb_features, i] <- error
         }
 
     }
+
+    print(paste("#Features: ",c(1:n)," ; CV error=",round(apply(CV_err,1,mean),digits=4), " ; std dev=",round(apply(CV_err,1,sd),digits=4)))
 
 }
 
@@ -125,15 +131,17 @@ feature_PCA <- function(dataset, nfold) {
     X_pca <- data.frame(prcomp(dataset[, -(n+1)], retx=T)$x)
 
 
+    CV_err<-matrix(0,nrow=n,ncol=nfold)
+
     # cross validation loop
     for (i in 1:nfold) {
 
         test_set_ind <- ((i-1)*CV_size+1):(i*CV_size)
-        X_test_set <- X_pca[test_set_ind,]
+        X_test_set <- X_pca[test_set_ind,-(n+1)]
         Y_test_set <- dataset[test_set_ind, (n+1)]
 
         train_set_ind <- setdiff(1:N, test_set_ind)
-        X_train_set <- X_pca[train_set_ind,]
+        X_train_set <- X_pca[train_set_ind,-(n+1)]
         Y_train_set <- dataset[train_set_ind, (n+1)]
 
         for(nb_features in 1:n) {
@@ -146,11 +154,15 @@ feature_PCA <- function(dataset, nfold) {
             Y_hat <- predict(model, X_train_set[,1:nb_features, drop=F])
 
             error <- sqrt(mean( (log(Y_hat) - log(Y_test_set))^2, na.rm=T ))
-            print(nb_features)
-            print(error)
+            # print(nb_features)
+            # print(error)
+
+            CV_err[nb_features, i] <- error
 
         }
     }
+
+    print(paste("#Features: ",c(1:n)," ; CV error=",round(apply(CV_err,1,mean),digits=4), " ; std dev=",round(apply(CV_err,1,sd),digits=4)))
 }
 
 feature_wrap <- function(dataset, nfold) {
@@ -188,7 +200,7 @@ feature_wrap <- function(dataset, nfold) {
 
                 DS <- as.data.frame(cbind(X_train_set, Y_train_set))
 
-                model <- svm(Y_train_set ~ ., DS)
+                model <- rpart(Y_train_set ~ ., DS)
 
                 Y_hat <- predict(model, X_test_set)
 
