@@ -134,3 +134,10 @@
 [33] "#Features:  33  ; CV error= 0.5358  ; std dev= 0.0203" "#Features:  34  ; CV error= 0.5356  ; std dev= 0.0204"
 [35] "#Features:  35  ; CV error= 0.5355  ; std dev= 0.0205" "#Features:  36  ; CV error= 0.5351  ; std dev= 0.0204"
 ```
+
+## next step:
+
+- ensemble of ensemble of different models
+- taking into account class variables
+- tune parameters of svm
+- Radial Basis Functions in the ensemble (look at slides 46 of algosRegr)
