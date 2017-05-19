@@ -26,16 +26,16 @@ cross_validation <- function(dataset, nfold) {
         DS <- cbind(X.tr, Y.tr)
 
         # model <- lm(Y.tr ~ ., DS)
-        # model <- rpart(Y.tr ~ ., DS)
+        # model <- rpart(Y.tr ~ ., DS, method="poisson", parms=list(0.5)) #linearRidge
         # model <- nnet(Y.tr ~ ., DS, size=10, linout=T)
-        # model <- lazy(Y.tr ~ ., DS)
-        model <- svm(Y.tr ~ ., DS) # support vector machine (e1071)
+        model <- lazy(Y.tr ~ ., DS)
+        # model <- svm(Y.tr ~ ., DS, type="nu-regression") # support vector machine (e1071)
 
         # mean square error
         Y.hat.ts <- predict(model, X.ts)
 
         # for lazy model
-        # Y.hat.ts <- unlist(Y.hat.ts)
+        Y.hat.ts <- unlist(Y.hat.ts)
 
         CV.err[i] <- sqrt( mean(( log(Y.hat.ts) - log(Y.ts) ) ^ 2, na.rm=T) )
     }
