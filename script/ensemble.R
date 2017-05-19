@@ -18,24 +18,30 @@ ensemble_models <- function(dataset, nfold, nmodel) {
 
         for(r in 1:nmodel) {
 
+            # create a random subset of features
+            sub_features_ind <- sample(1:n, size=(0.6*n), replace=FALSE)
+            # print(sub_features_ind)
+
             # observations used to train this model
             resample_ind <- sample(train_set_ind, rep=T)
 
-            X_train_set <- dataset[resample_ind, -(n+1)]
+            # X_train_set <- dataset[resample_ind, -(n+1)]
+            X_train_set <- dataset[resample_ind, sub_features_ind]
             Y_train_set <- dataset[resample_ind, (n+1)]
 
             DS <- cbind(X_train_set, Y_train_set)
 
             # build the model
-            model <- svm(Y_train_set ~ ., DS)
+            model <- rpart(Y_train_set ~ ., DS)
 
-            Y_hat[,r] <- predict(model, X_test_set)
+            # Y_hat[,r] <- predict(model, X_test_set)
+            Y_hat[,r] <- predict(model, X_test_set[, sub_features_ind])
         }
 
         # build the final prediction (average of all the predictions)
         Y_hat_mean <- apply(Y_hat, 1, mean)
 
-        error <-  mean(sqrt(( log(Y_hat)-log(Y_test_set) )^2), na.rm=T)
+        error <-  sqrt( mean( (log(Y_hat_mean)-log(Y_test_set) )^2, na.rm=T))
 
         CV_err[i] <- error
         print(i)

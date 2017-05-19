@@ -141,3 +141,4 @@
 - taking into account class variables
 - tune parameters of svm
 - Radial Basis Functions in the ensemble (look at slides 46 of algosRegr)
+- ensemble of models: take only a subset of features
