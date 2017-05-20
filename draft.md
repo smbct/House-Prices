@@ -142,3 +142,11 @@
 - tune parameters of svm
 - Radial Basis Functions in the ensemble (look at slides 46 of algosRegr)
 - ensemble of models: take only a subset of features
+
+## Results
+
+                                lm          |       rpart       |       nnet        |       lazy        |     svm
+cross_validation all feat: 0.1878 - 0.0412  | 0.2167 - 0.0203   |  0.155 - 0.0268   |  0.1508 - 0.0233  | 0.1574 - 0.0263
+cross_validation sel feat: 0.1912 - 0.0426  | 0.2167 - 0.0203   |  0.145 - 0.0181   |  0.1462 - 0.0253  | 0.1343 - 0.0175
+ensemble all feat:         0.1685 - 0.0225  |  0.1928 - 0.0218  |  0.1819- 0.0628   |  0.1452 - 0.0221  | 0.154 - 0.0211
+ensemble sel feat:                                                                  |  0.1721 - 0.0837  | 

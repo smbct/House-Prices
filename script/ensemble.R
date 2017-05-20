@@ -29,16 +29,25 @@ ensemble_models <- function(dataset, nfold, nmodel) {
             X_train_set <- dataset[resample_ind, sub_features_ind]
             Y_train_set <- dataset[resample_ind, (n+1)]
 
+            Y_train_mu <- mean(Y_train_set)
+            Y_train_sigma <- sd(Y_train_set)
+            Y_train_set <- unlist(scale(Y_train_set))
+
             DS <- cbind(X_train_set, Y_train_set)
 
             # build the model
+            # model <- lm(Y_train_set ~ ., DS)
             # model <- rpart(Y_train_set ~ ., DS)
-            model <- lazy(Y_train_set ~ ., DS)
+            # model <- lazy(Y_train_set ~ ., DS)
+            # model <- svm(Y_train_set ~ ., DS)
+            model <- nnet(Y_train_set ~ ., DS, size=5, linout=T, trace=T, maxit=1000)
 
-            # Y_hat[,r] <- predict(model, X_test_set)
-            Y_hat[,r] <- unlist(predict(model, X_test_set[, sub_features_ind]))
+            Y_hat[,r] <- unlist(predict(model, X_test_set[sub_features_ind]))
+            # Y_hat[,r] <- predict(model, X_test_set[, sub_features_ind])
             #print("test")
-            #Y_hat[,r] <- unlist(Y_hat[,r]) # lazy model
+            Y_hat[,r] <- unlist(Y_hat[,r]) # lazy model
+
+            Y_hat[,r] <- (Y_hat[,r]*Y_train_sigma)+Y_train_mu
         }
 
         # build the final prediction (average of all the predictions)
