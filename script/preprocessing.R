@@ -9,6 +9,8 @@ preprocessing <- function(data) {
 
     # replace nan values with the mean
     data_preprocessed <- data.frame(apply(data_preprocessed, 2, replace_na))
+
+    # factor_sel <- c("MSZoning", "Utilities", "Neighborhood", "Condition1", "Condition2", "HouseStyle", "Exterior2nd", "ExterQual", "BsmtCond", "HeatingQC", "KitchenQual", "Functional", "GarageQual", "PoolQC", "Fence", "SaleType", "SaleCondition")
 }
 
 replace_na <- function(vec) {

@@ -31,8 +31,8 @@ cross_validation <- function(dataset, nfold) {
 
         # model <- lm(Y.tr ~ ., DS)
         # model <- rpart(Y.tr ~ ., DS, method="poisson") #linearRidge
-        # model <- nnet(Y.tr ~ ., DS, size=5, linout=T, trace=T)
-        model <- lazy(Y.tr ~ ., DS)
+        model <- nnet(Y.tr ~ ., DS, size=5, linout=T, trace=F)
+        # model <- lazy(Y.tr ~ ., DS)
         # model <- svm(Y.tr ~ ., DS, type="nu-regression") # support vector machine (e1071)
 
         # mean square error
