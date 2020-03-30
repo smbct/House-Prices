@@ -8,7 +8,10 @@ from matplotlib import pyplot as plt
 
 import sklearn
 from sklearn.neighbors import KernelDensity
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
 
+import umap
 
 ######################################################################
 # gaussian based density estimation for the targer feature (SalePrice)
@@ -185,6 +188,29 @@ ax = plt.subplot(2,2,2)
 display_categorical_feature(ax, df, cat_features[45], target_feature, mean_sort=True)
 
 # compute a UMAP on numerical features
-df_numerical.dropna(inplace=True)
+df_copy = df_numerical.copy()
+df_copy.drop(target_feature, axis=1, inplace=True) # remove the target feature from the dataset
+df_copy.dropna(inplace=True)
+
+# perform normalization and PCA
+scaler = StandardScaler()
+X_std = scaler.fit_transform(df_copy.values)
+
+pca = PCA(n_components=15)
+X_pca = pca.fit(X_std).transform(X_std)
+
+ax = plt.subplot(2,2,3)
+val2 = c=df_numerical.dropna()[target_feature].values.copy()
+# val2=val2.reshape(0,1)
+
+# print(val2)
+# ax.scatter(X_pca[:,0], X_pca[:,1], marker='x', s=10, c=val2)
+
+reducer = umap.UMAP(min_dist=0.2,n_neighbors=30,spread=0.5)
+embedding = reducer.fit_transform(X_pca)
+ax.scatter(embedding[:,0], embedding[:,1], marker='x', s=10, c=val2)
+ax.set_aspect('equal')
+ax.set_adjustable('datalim')
+ax.set_title('UMAP')
 
 plt.show()
