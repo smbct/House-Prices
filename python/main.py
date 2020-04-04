@@ -4,14 +4,19 @@ import numpy as np
 import pandas as pd
 
 from matplotlib import pyplot as plt
-
+import matplotlib.colors as mcolors
 
 import sklearn
 from sklearn.neighbors import KernelDensity
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 
+from sklearn.cluster import KMeans
+
+from sklearn import tree
+
 import umap
+
 
 ######################################################################
 # gaussian based density estimation for the targer feature (SalePrice)
@@ -70,7 +75,7 @@ def plot_col_vs_target(dataframe, col, target_feature):
 ######################################################################
 def display_categorical_feature(ax, dataframe, cat_feature, target_feature, mean_sort = False):
 
-     # x axis in scientific notation
+    # x axis in scientific notation
     ax.ticklabel_format(axis='y', style='sci', scilimits=(0, 0), useMathText=True)
 
     # extract the two columns
@@ -122,13 +127,73 @@ def display_categorical_feature(ax, dataframe, cat_feature, target_feature, mean
     ax.set_xlim(lim)
 
     # set x labels
-    print(pos)
     ax.set_xticks(pos)
     ax.set_xticklabels(values)
 
     ax.set_title(target_feature + ' vs ' + cat_feature)
 
     return
+
+######################################################################
+# compute UMAP
+######################################################################
+def display_UMAP(ax, df_train, df_test, target_feature, numerical_features):
+
+    df_copy = df_train.copy()
+    df_copy.drop(target_feature, axis=1, inplace=True) # remove the target feature from the dataset
+
+    # merge train and test data (without target feature)
+    df_copy = df_copy.append(df_test[df_copy.columns])
+
+    df_copy.dropna(inplace=True)
+
+    # perform normalization and PCA
+    scaler = StandardScaler()
+    X_std = scaler.fit_transform(df_copy.values)
+
+    # try some clustering algorithm
+    km = KMeans(6, n_init=30, max_iter=1000)
+    labels = km.fit_predict(X_std)
+
+    # new_label = np.max(labels)+1
+    # for i in range(len(df_test)):
+    #     labels[-i] = new_label
+
+    color_list = list(mcolors.TABLEAU_COLORS)
+    # print(len(color_list))
+
+    cluster_colors = [color_list[elt] for elt in labels]
+    # special color for the test datapoint
+
+
+    # perform PCA
+    pca = PCA(n_components=15)
+    X_pca = pca.fit(X_std).transform(X_std)
+
+    val2 = c=df_numerical.dropna()[target_feature].values.copy()
+    # val2=val2.reshape(0,1)
+
+    # print(val2)
+    # ax.scatter(X_pca[:,0], X_pca[:,1], marker='x', s=10, c=val2)
+
+    # compute a UMAP on numerical features
+    reducer = umap.UMAP(min_dist=0.2,n_neighbors=30,spread=0.5)
+    embedding = reducer.fit_transform(X_pca)
+    ax.scatter(embedding[:,0], embedding[:,1], marker='.', s=15, c=cluster_colors)
+
+    ax.set_aspect('equal')
+    ax.set_adjustable('datalim')
+    ax.set_title('UMAP')
+
+    return
+
+
+######################################################################
+# compute Error: Root-Mean-Squared-Error (RMSE) between SalePrice log
+######################################################################
+def error(Y, Y_pred):
+    return np.sqrt(np.mean(np.square(np.log(Y) - np.log(Y_pred))))
+
 
 # consider 0 as missing values: EnclosedPorch, BsmtFinSF2, 3SsnPorch, PoolArea, ScreenPorch, BsmtUnfSF (few), OpenPorchSF, 22ndFlrSF, WoodDeckSF, BsmtFinSF1, YearRemodAdd, TotalBsmtSF, GarageArea
 # create categorical variables when few values: KitchenAbvGr, LowQualFinSF, MiscVal, BsmtHalfBath, BsmtFullBath, HalfBath, Fireplaces, FullBath
@@ -146,8 +211,17 @@ df = pd.read_csv('data/train.csv')
 df.set_index('Id', inplace=True)
 df.index.rename(None, inplace=True)
 
+print('train set size: ' + str(len(df)))
+
 # select numerical variables
 df.dtypes
+
+# load test set
+df_test = pd.read_csv('data/test.csv')
+df_test.set_index('Id', inplace=True)
+df_test.index.rename(None, inplace=True)
+print(df_test.head())
+print('test set size: ' + str(len(df_test)))
 
 # display columns with na values
 
@@ -160,57 +234,74 @@ df_numerical.columns
 
 # Hold on, 'MSSubClass' is also a categorical variable
 df_numerical = df_numerical.drop('MSSubClass', axis=1)
-
 # not sure for: OverallQual, OverallCond, MoSold, YrSold
 df_numerical = df_numerical.drop(['OverallQual', 'OverallCond', 'MoSold', 'YrSold'], axis=1)
+df_numerical = df_numerical.drop(['YearBuilt', 'YearRemodAdd'], axis=1)
 
 
 print('numerical variables: ')
-print(df_numerical.columns)
+numerical_features = df_numerical.columns.copy()
+print(numerical_features)
 
 print('categorical variables: ')
-cat_features = [feature for feature in features if feature not in df_numerical.columns]
+cat_features = [feature for feature in features if feature not in numerical_features]
 print(cat_features)
 
 # isolate the target feature: 'SalePrice'
 target_feature = df_numerical.columns[-1]
 print('target feature: ' + target_feature)
 
+
 # plot data for SalePrice only (boxplot and scatter plot)
 ax = plt.subplot(2,2,1)
 display_sell_price(ax)
+
 
 # plot a categorical variable
 ax = plt.subplot(2,2,2)
 # display_categorical_feature(df, cat_features[0], target_feature)
 # display_categorical_feature(ax, df, 'Alley', target_feature)
+display_categorical_feature(ax, df, cat_features[1], target_feature, mean_sort=False)
 
-display_categorical_feature(ax, df, cat_features[45], target_feature, mean_sort=True)
+# display a UMAP
+# ax = plt.subplot(2,2,3)
+# display_UMAP(ax, df_numerical, df_test, target_feature, numerical_features)
 
-# compute a UMAP on numerical features
-df_copy = df_numerical.copy()
-df_copy.drop(target_feature, axis=1, inplace=True) # remove the target feature from the dataset
-df_copy.dropna(inplace=True)
+# fit a decision tree on the numerical dataset
+df_numerical_dt = df_numerical.copy().dropna()
+# print(df_numerical_dt.head())
+# print(len(df_numerical_dt))
 
-# perform normalization and PCA
-scaler = StandardScaler()
-X_std = scaler.fit_transform(df_copy.values)
+X = df_numerical_dt.drop(target_feature, axis=1)[:]
+Y = df_numerical_dt[target_feature]
 
-pca = PCA(n_components=15)
-X_pca = pca.fit(X_std).transform(X_std)
+clf = tree.DecisionTreeRegressor()
+clf = clf.fit(X, Y)
 
-ax = plt.subplot(2,2,3)
-val2 = c=df_numerical.dropna()[target_feature].values.copy()
-# val2=val2.reshape(0,1)
+Y_pred = clf.predict(X)
 
-# print(val2)
-# ax.scatter(X_pca[:,0], X_pca[:,1], marker='x', s=10, c=val2)
+# na values in test set
+df_test_numerical = df_test[numerical_features.drop(target_feature)]
+df_test_na = df_test.isna().any()
+col_na_test = [elt for elt in df_test_numerical.columns if df_test_na[elt]]
+print('na columns: ')
+print(col_na_test)
 
-reducer = umap.UMAP(min_dist=0.2,n_neighbors=30,spread=0.5)
-embedding = reducer.fit_transform(X_pca)
-ax.scatter(embedding[:,0], embedding[:,1], marker='x', s=10, c=val2)
-ax.set_aspect('equal')
-ax.set_adjustable('datalim')
-ax.set_title('UMAP')
+# print(numerical_features)
+# X_test = df_test[numerical_features.drop(target_feature)]
+# Y_test_pred = clf.predict(X_test)
+
+# add the prediction to the test set
+# df_test_pred = pd.DataFrame(Y_test_pred, df_test.index)
+
+# print(df_test_pred.head())
+# df_test = df_test.merge(df_test_pred)
+# print(df_test.head())
+
+
+# compute the error
+# error = np.sqrt(np.mean(np.square(np.log(Y) - np.log(Y_pred))))
+print('error train: ' + str(error(Y, Y_pred)))
+
 
 plt.show()
