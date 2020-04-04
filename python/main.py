@@ -14,6 +14,7 @@ from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
 
 from sklearn import tree
+from sklearn import svm
 
 import umap
 
@@ -148,7 +149,6 @@ def display_UMAP(ax, df_train, df_test, target_feature, numerical_features):
     df_copy.dropna(inplace=True)
 
     # perform normalization and PCA
-    scaler = StandardScaler()
     X_std = scaler.fit_transform(df_copy.values)
 
     # try some clustering algorithm
@@ -194,6 +194,20 @@ def display_UMAP(ax, df_train, df_test, target_feature, numerical_features):
 def error(Y, Y_pred):
     return np.sqrt(np.mean(np.square(np.log(Y) - np.log(Y_pred))))
 
+######################################################################
+# compute Error: Root-Mean-Squared-Error (RMSE) between SalePrice log
+######################################################################
+def plot_prediction_error(ax, Y, Y_pred):
+    
+    min_val = np.min(Y)
+    max_val = np.max(Y)
+
+    ax.scatter(Y, Y_pred, marker = 'x')
+    
+    ax.plot([min_val, max_val], [min_val, max_val], color='red')
+
+    return
+
 
 # consider 0 as missing values: EnclosedPorch, BsmtFinSF2, 3SsnPorch, PoolArea, ScreenPorch, BsmtUnfSF (few), OpenPorchSF, 22ndFlrSF, WoodDeckSF, BsmtFinSF1, YearRemodAdd, TotalBsmtSF, GarageArea
 # create categorical variables when few values: KitchenAbvGr, LowQualFinSF, MiscVal, BsmtHalfBath, BsmtFullBath, HalfBath, Fireplaces, FullBath
@@ -209,7 +223,7 @@ df = pd.read_csv('data/train.csv')
 
 # remove the ID
 df.set_index('Id', inplace=True)
-df.index.rename(None, inplace=True)
+# df.index.rename(None, inplace=True)
 
 print('train set size: ' + str(len(df)))
 
@@ -219,7 +233,7 @@ df.dtypes
 # load test set
 df_test = pd.read_csv('data/test.csv')
 df_test.set_index('Id', inplace=True)
-df_test.index.rename(None, inplace=True)
+# df_test.index.rename(None, inplace=True)
 print(df_test.head())
 print('test set size: ' + str(len(df_test)))
 
@@ -267,32 +281,53 @@ display_categorical_feature(ax, df, cat_features[1], target_feature, mean_sort=F
 # ax = plt.subplot(2,2,3)
 # display_UMAP(ax, df_numerical, df_test, target_feature, numerical_features)
 
-# fit a decision tree on the numerical dataset
-df_numerical_dt = df_numerical.copy().dropna()
+
 # print(df_numerical_dt.head())
 # print(len(df_numerical_dt))
 
-X = df_numerical_dt.drop(target_feature, axis=1)[:]
-Y = df_numerical_dt[target_feature]
-
-clf = tree.DecisionTreeRegressor()
-clf = clf.fit(X, Y)
-
-Y_pred = clf.predict(X)
 
 # na values in test set
 df_test_numerical = df_test[numerical_features.drop(target_feature)]
 df_test_na = df_test.isna().any()
 col_na_test = [elt for elt in df_test_numerical.columns if df_test_na[elt]]
+col_na_test.append(target_feature)
 print('na columns: ')
 print(col_na_test)
 
+# split indexes into train and test
+indexes = df_numerical.index
+split_index = int(indexes.size*0.5)
+train_indexes = indexes[:split_index]
+test_indexes = indexes[split_index+1:]
+
+# fit a decision tree on the numerical dataset
+df_numerical_dt = df_numerical.copy()
+df_numerical_dt = df_numerical_dt.loc[train_indexes].dropna()
+X = df_numerical_dt.drop(col_na_test, axis=1)[:]
+scaler = StandardScaler()
+X = scaler.fit_transform(X)
+Y = df_numerical_dt[target_feature][df_numerical_dt.index]
+
+# Decision tree
+# clf = tree.DecisionTreeRegressor(criterion='mse')
+# SVM
+clf = svm.SVR(kernel='rbf', C=100, gamma=0.1, epsilon=.1)
+
+clf = clf.fit(X, Y)
+
+Y_pred = clf.predict(df_numerical.loc[test_indexes].drop(col_na_test, axis=1))
+Y_test = df_numerical[target_feature].loc[test_indexes]
+
+ax = plt.subplot(2,2,3)
+plot_prediction_error(ax, Y_test, Y_pred)
+
 # print(numerical_features)
-# X_test = df_test[numerical_features.drop(target_feature)]
+# X_test = df_test[numerical_features.drop(col_na_test)]
 # Y_test_pred = clf.predict(X_test)
 
 # add the prediction to the test set
-# df_test_pred = pd.DataFrame(Y_test_pred, df_test.index)
+# df_test_pred = pd.DataFrame(Y_test_pred, df_test.index, [target_feature])
+# df_test_pred.to_csv('prediction.csv')
 
 # print(df_test_pred.head())
 # df_test = df_test.merge(df_test_pred)
@@ -301,7 +336,7 @@ print(col_na_test)
 
 # compute the error
 # error = np.sqrt(np.mean(np.square(np.log(Y) - np.log(Y_pred))))
-print('error train: ' + str(error(Y, Y_pred)))
+print('error train: ' + str(error(Y_test, Y_pred)))
 
 
 plt.show()
