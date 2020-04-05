@@ -7,14 +7,18 @@ from matplotlib import pyplot as plt
 import matplotlib.colors as mcolors
 
 import sklearn
+from sklearn import preprocessing
 from sklearn.neighbors import KernelDensity
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 
+# clustering
 from sklearn.cluster import KMeans
 
+# regression models
 from sklearn import tree
 from sklearn import svm
+from sklearn import linear_model
 
 import umap
 
@@ -149,7 +153,7 @@ def display_UMAP(ax, df_train, df_test, target_feature, numerical_features):
     df_copy.dropna(inplace=True)
 
     # perform normalization and PCA
-    X_std = scaler.fit_transform(df_copy.values)
+    X_std = preprocessing.scale(df_copy.values)
 
     # try some clustering algorithm
     km = KMeans(6, n_init=30, max_iter=1000)
@@ -170,7 +174,7 @@ def display_UMAP(ax, df_train, df_test, target_feature, numerical_features):
     pca = PCA(n_components=15)
     X_pca = pca.fit(X_std).transform(X_std)
 
-    val2 = c=df_numerical.dropna()[target_feature].values.copy()
+    # val2 = c=df_numerical.dropna()[target_feature].values.copy()
     # val2=val2.reshape(0,1)
 
     # print(val2)
@@ -194,17 +198,67 @@ def display_UMAP(ax, df_train, df_test, target_feature, numerical_features):
 def error(Y, Y_pred):
     return np.sqrt(np.mean(np.square(np.log(Y) - np.log(Y_pred))))
 
+
 ######################################################################
 # compute Error: Root-Mean-Squared-Error (RMSE) between SalePrice log
 ######################################################################
 def plot_prediction_error(ax, Y, Y_pred):
-    
-    min_val = np.min(Y)
-    max_val = np.max(Y)
+
+    ax.set_title('SalePrice: gt vs predicted')
+
+    # x axis in scientific notation
+    ax.ticklabel_format(axis='both', style='sci', scilimits=(0, 0), useMathText=True)
 
     ax.scatter(Y, Y_pred, marker = 'x')
     
-    ax.plot([min_val, max_val], [min_val, max_val], color='red')
+    ax.plot(ax.get_xlim(), ax.get_ylim(), color='red')
+
+    return
+
+
+######################################################################
+# train a model on a subset of data and predict on the rest
+######################################################################
+def train_predict(model, dataframe, target_feature, ratio):
+
+    # df contains only the (numerical) features used for the training/prediction
+    # and contains na values
+
+    df = dataframe.copy()
+
+    prediction_features = df.columns.drop(target_feature)
+
+    # normalization of tha data
+    normalized_df = df
+    normalized_df[prediction_features]=(normalized_df[prediction_features]-normalized_df[prediction_features].mean())/normalized_df[prediction_features].std()
+    df = normalized_df
+
+    # drop na
+    df = df.dropna()
+
+    # split indexes into training/testing indexes
+    indexes = df.index
+    split_index = int(indexes.size*ratio)
+    train_indexes = indexes[:split_index]
+    test_indexes = indexes[split_index+1:]
+
+    # train the model
+    X_train = df[prediction_features].loc[train_indexes]
+    Y_train = df[target_feature].loc[train_indexes]
+    model.fit(X_train, Y_train)
+
+    # predict on the testing set
+    X_test = df[prediction_features].loc[test_indexes]
+    Y_test = df[target_feature].loc[test_indexes]
+    Y_test_predicted = model.predict(X_test)
+
+    # compute the error
+    test_error = error(Y_test, Y_test_predicted)
+    print(test_error)
+
+    # plot the prediction
+    ax = plt.subplot(2,2,3)
+    plot_prediction_error(ax, Y_test, Y_test_predicted)
 
     return
 
@@ -218,6 +272,8 @@ def plot_prediction_error(ax, Y, Y_pred):
 # potential order in categorical variables: LandContour, LandSlope, OverallQual, OverallCond, ExterQual, ExterCond, BsmtQual, BsmtCond, BsmtExposure, BsmtFinType1, BsmtFinType2, HeatingQC, KitchenQual, Functional, FireplaceQu, GarageFinish, GarageQual, GarageCond, PoolQC, Fence (? two categories), LotShape
 
 # Also: try some visualisation/clustering through UMAP !!!! :D
+
+# Interrogation: standardisation: dot it several time or only once on all data ? and std for target feature ?
 
 df = pd.read_csv('data/train.csv')
 
@@ -234,7 +290,7 @@ df.dtypes
 df_test = pd.read_csv('data/test.csv')
 df_test.set_index('Id', inplace=True)
 # df_test.index.rename(None, inplace=True)
-print(df_test.head())
+# print(df_test.head())
 print('test set size: ' + str(len(df_test)))
 
 # display columns with na values
@@ -246,24 +302,31 @@ df_numerical = df.select_dtypes(include = 'number')
 df_numerical.columns
 
 
-# Hold on, 'MSSubClass' is also a categorical variable
+# Hold on, 'MSSubClass' is also a categorical variable -> but prediction better on linear model when interpreted as numerical
 df_numerical = df_numerical.drop('MSSubClass', axis=1)
 # not sure for: OverallQual, OverallCond, MoSold, YrSold
 df_numerical = df_numerical.drop(['OverallQual', 'OverallCond', 'MoSold', 'YrSold'], axis=1)
 df_numerical = df_numerical.drop(['YearBuilt', 'YearRemodAdd'], axis=1)
 
 
-print('numerical variables: ')
+# Numerical features
+# print('numerical variables: ')
 numerical_features = df_numerical.columns.copy()
-print(numerical_features)
+# print(numerical_features)
 
-print('categorical variables: ')
+# categorical variables
+# print('categorical variables: ')
 cat_features = [feature for feature in features if feature not in numerical_features]
-print(cat_features)
+# print(cat_features)
 
 # isolate the target feature: 'SalePrice'
 target_feature = df_numerical.columns[-1]
 print('target feature: ' + target_feature)
+
+
+# compute tuples of features sharing na values on the same rows
+df_numerical_na = df_numerical.isna()
+print(df_numerical_na.head())
 
 
 # plot data for SalePrice only (boxplot and scatter plot)
@@ -273,70 +336,23 @@ display_sell_price(ax)
 
 # plot a categorical variable
 ax = plt.subplot(2,2,2)
-# display_categorical_feature(df, cat_features[0], target_feature)
-# display_categorical_feature(ax, df, 'Alley', target_feature)
-display_categorical_feature(ax, df, cat_features[1], target_feature, mean_sort=False)
+# display_categorical_feature(ax, df, cat_features[1], target_feature, mean_sort=False)
+display_categorical_feature(ax, df, 'MSSubClass', target_feature, mean_sort=False)
 
 # display a UMAP
 # ax = plt.subplot(2,2,3)
 # display_UMAP(ax, df_numerical, df_test, target_feature, numerical_features)
 
-
-# print(df_numerical_dt.head())
-# print(len(df_numerical_dt))
-
-
-# na values in test set
-df_test_numerical = df_test[numerical_features.drop(target_feature)]
-df_test_na = df_test.isna().any()
-col_na_test = [elt for elt in df_test_numerical.columns if df_test_na[elt]]
-col_na_test.append(target_feature)
-print('na columns: ')
-print(col_na_test)
-
-# split indexes into train and test
-indexes = df_numerical.index
-split_index = int(indexes.size*0.5)
-train_indexes = indexes[:split_index]
-test_indexes = indexes[split_index+1:]
-
-# fit a decision tree on the numerical dataset
-df_numerical_dt = df_numerical.copy()
-df_numerical_dt = df_numerical_dt.loc[train_indexes].dropna()
-X = df_numerical_dt.drop(col_na_test, axis=1)[:]
-scaler = StandardScaler()
-X = scaler.fit_transform(X)
-Y = df_numerical_dt[target_feature][df_numerical_dt.index]
-
 # Decision tree
 # clf = tree.DecisionTreeRegressor(criterion='mse')
-# SVM
-clf = svm.SVR(kernel='rbf', C=100, gamma=0.1, epsilon=.1)
 
-clf = clf.fit(X, Y)
+# Support Vector Machine
+# clf = svm.SVR(kernel='rbf', C=100, gamma=0.1, epsilon=.1)
 
-Y_pred = clf.predict(df_numerical.loc[test_indexes].drop(col_na_test, axis=1))
-Y_test = df_numerical[target_feature].loc[test_indexes]
+# Linear model
+clf = linear_model.LinearRegression()
 
-ax = plt.subplot(2,2,3)
-plot_prediction_error(ax, Y_test, Y_pred)
-
-# print(numerical_features)
-# X_test = df_test[numerical_features.drop(col_na_test)]
-# Y_test_pred = clf.predict(X_test)
-
-# add the prediction to the test set
-# df_test_pred = pd.DataFrame(Y_test_pred, df_test.index, [target_feature])
-# df_test_pred.to_csv('prediction.csv')
-
-# print(df_test_pred.head())
-# df_test = df_test.merge(df_test_pred)
-# print(df_test.head())
-
-
-# compute the error
-# error = np.sqrt(np.mean(np.square(np.log(Y) - np.log(Y_pred))))
-print('error train: ' + str(error(Y_test, Y_pred)))
-
+# train and predict
+train_predict(clf, df_numerical, target_feature, 0.5)
 
 plt.show()
