@@ -324,9 +324,12 @@ target_feature = df_numerical.columns[-1]
 print('target feature: ' + target_feature)
 
 
-# compute tuples of features sharing na values on the same rows
+# compute list of features sharing na values on the same rows
 df_numerical_na = df_numerical.isna()
-print(df_numerical_na.head())
+# print(df_numerical_na.head())
+res = df_numerical_na.apply(lambda x : [col for col in x.index if x[col]], result_type='reduce', axis=1)
+# print(set(res.values))
+print(np.unique(res))
 
 
 # plot data for SalePrice only (boxplot and scatter plot)
