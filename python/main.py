@@ -262,6 +262,34 @@ def train_predict(model, dataframe, target_feature, ratio):
 
     return
 
+######################################################################
+# train a model on a subset of data and predict on the rest
+######################################################################
+def train_predict_bis(model, dataframe, target_feature, ratio, nan_features):
+
+    # df contains only the (numerical) features used for the training/prediction
+    # and contains na values
+
+    df = dataframe.copy()
+
+    prediction_features = df.columns.drop(target_feature)
+
+    # normalization of tha data
+    normalized_df = df
+    normalized_df[prediction_features]=(normalized_df[prediction_features]-normalized_df[prediction_features].mean())/normalized_df[prediction_features].std()
+    df = normalized_df
+
+    # drop na
+    df = df.dropna()
+
+    # split indexes into training/testing indexes
+    indexes = df.index
+    split_index = int(indexes.size*ratio)
+    train_indexes = indexes[:split_index]
+    test_indexes = indexes[split_index+1:]
+
+    return
+
 
 # consider 0 as missing values: EnclosedPorch, BsmtFinSF2, 3SsnPorch, PoolArea, ScreenPorch, BsmtUnfSF (few), OpenPorchSF, 22ndFlrSF, WoodDeckSF, BsmtFinSF1, YearRemodAdd, TotalBsmtSF, GarageArea
 # create categorical variables when few values: KitchenAbvGr, LowQualFinSF, MiscVal, BsmtHalfBath, BsmtFullBath, HalfBath, Fireplaces, FullBath
@@ -327,9 +355,27 @@ print('target feature: ' + target_feature)
 # compute list of features sharing na values on the same rows
 df_numerical_na = df_numerical.isna()
 # print(df_numerical_na.head())
-res = df_numerical_na.apply(lambda x : [col for col in x.index if x[col]], result_type='reduce', axis=1)
+res = df_numerical_na.apply(lambda x : ([col for col in x.index if x[col]], x.name), result_type='reduce', axis=1)
+# print(res.head())
 # print(set(res.values))
-print(np.unique(res))
+paired_features = np.unique([elt[0] for elt in res])
+paired_indexes = [[] for _ in paired_features]
+for elt in res:
+    ind = 0
+    while paired_features[ind] != elt[0]:
+        ind += 1
+    paired_indexes[ind].append(elt[1])
+sizes = [ len(elt) for elt in paired_indexes]
+# print(paired_indexes)
+print(paired_features)
+print(sizes)
+# print(np.unique(paired_features))
+# take the corresponding indexes for each tuple
+
+# how to proceed ?
+# - learn all the features that can be learned when there is no missing data
+# - when there are missing data, create an alternative dataset without the missing column, train on the dataset (where it is possible) and predict only these features
+# - alternatively we couls remove the features from the whole training set and learn everything at once
 
 
 # plot data for SalePrice only (boxplot and scatter plot)
