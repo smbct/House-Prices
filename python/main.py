@@ -20,6 +20,7 @@ from sklearn import tree
 from sklearn import svm
 from sklearn import linear_model
 from sklearn.neural_network import MLPRegressor
+from sklearn.ensemble import GradientBoostingRegressor
 
 import umap
 
@@ -368,6 +369,89 @@ def train_predict_bis(model, dataframe, target_feature, ratio):
     return
 
 
+######################################################################
+# train a model for the final submission
+######################################################################
+def train_predict_final(model, dataframe, target_feature, train_indexes, test_indexes):
+
+    # print(dataframe)
+
+    # df contains only the (numerical) features used for the training/prediction
+    # and contains na values
+
+    df = dataframe.copy()
+
+    prediction_features = df.columns.drop(target_feature)
+
+    # normalization of tha data
+    normalized_df = df
+    normalized_df[prediction_features]=(normalized_df[prediction_features]-normalized_df[prediction_features].mean())/normalized_df[prediction_features].std()
+    df = normalized_df
+
+    # compute nan features
+    na_features = df[prediction_features].isna().apply(lambda x : ([col for col in x.index if x[col]], x.name), result_type='reduce', axis=1)
+    # print(res.head())
+    # print(set(res.values))
+    paired_features = np.unique([elt[0] for elt in na_features])
+    paired_indexes = [[] for _ in paired_features]
+    for elt in na_features:
+        ind = 0
+        while paired_features[ind] != elt[0]:
+            ind += 1
+        paired_indexes[ind].append(elt[1])
+
+    # print(paired_indexes)
+    print(paired_features)
+
+    # compute train indexes per nan group features
+    nan_test_indexes = [[] for _ in paired_features]
+
+    for tuple_index in range(len(paired_features)):
+        for ind in paired_indexes[tuple_index]:
+            if ind in test_indexes:
+                nan_test_indexes[tuple_index].append(ind)
+
+    # print(nan_test_indexes)
+    print([len(elt) for elt in nan_test_indexes])
+
+    # learn different models given available features
+    for tuple_ind in range(len(paired_features)):
+
+        # print(paired_features[tuple_ind])
+
+        if len(nan_test_indexes[tuple_ind]) == 0:
+            continue
+
+        # train a model on every features excepted the tupled features
+        # test it on the test indexes recorded, where only these features are missing
+        to_exclude = paired_features[tuple_ind]
+
+        new_cols = df.columns.drop(paired_features[tuple_ind])
+
+        # create a training dataframe
+        df_train = df[new_cols].loc[train_indexes].dropna()
+
+
+        # fit the model
+        X = df_train[new_cols.drop(target_feature)]
+        Y = df_train[target_feature]
+        model.fit(X,Y)
+
+        # make the prediction for the corresponding test_indexes
+        test_indexes_2 = nan_test_indexes[tuple_ind]
+
+        # prediction_features = df_temp.columns.drop(target_feature)
+
+        # predict on the test set
+        X_test = df[new_cols.drop(target_feature)].loc[test_indexes_2]
+        df[target_feature].loc[test_indexes_2] = model.predict(X_test) 
+
+    # save the result
+    df_res = df[target_feature][test_indexes]
+    df_res.to_csv('prediction_gb.csv', header=True)
+
+    return
+
 # consider 0 as missing values: EnclosedPorch, BsmtFinSF2, 3SsnPorch, PoolArea, ScreenPorch, BsmtUnfSF (few), OpenPorchSF, 2ndFlrSF, WoodDeckSF, BsmtFinSF1, YearRemodAdd, TotalBsmtSF, GarageArea
 # create categorical variables when few values: KitchenAbvGr, LowQualFinSF, MiscVal, BsmtHalfBath, BsmtFullBath, HalfBath, Fireplaces, FullBath
 # categorical with a lot of values: OverallCond (~), YrSold, MoSold, BedroomAbvGr, TotRmsAbvGrd, GarageCars (~)
@@ -402,6 +486,10 @@ print('test set size: ' + str(len(df_test)))
 
 # display columns with na values
 
+train_indexes = df.index
+test_indexes = df_test.index
+# df_complete = df.append(df_test, sort=False)
+
 # list of features
 features = df.columns.copy()
 
@@ -415,6 +503,8 @@ df_numerical = df_numerical.drop('MSSubClass', axis=1)
 df_numerical = df_numerical.drop(['OverallQual', 'OverallCond', 'MoSold', 'YrSold'], axis=1)
 df_numerical = df_numerical.drop(['YearBuilt', 'YearRemodAdd'], axis=1)
 
+# remove numerical features that have too many missing data
+df_numerical = df_numerical.drop(['3SsnPorch', 'PoolArea', 'EnclosedPorch', 'ScreenPorch'], axis=1)
 
 # Numerical features
 # print('numerical variables: ')
@@ -483,7 +573,10 @@ display_categorical_feature(ax, df, 'MSSubClass', target_feature, mean_sort=Fals
 # clf = svm.SVR(kernel='rbf', C=100, gamma=0.1, epsilon=.1)
 
 # Linear model
-clf = linear_model.LinearRegression()
+# clf = linear_model.LinearRegression()
+
+# Gradient Boosting
+clf = GradientBoostingRegressor(loss='ls', n_estimators=500, max_depth=2, learning_rate=.05)
 
 # Neural Network
 # clf = MLPRegressor(activation='tanh', solver='sgd', hidden_layer_sizes=(5, 10), max_iter=10000)
@@ -491,5 +584,6 @@ clf = linear_model.LinearRegression()
 # train and predict
 # train_predict(clf, df_numerical, target_feature, 0.5)
 train_predict_bis(clf, df_numerical, target_feature, 0.5)
+# train_predict_final(clf, df_complete[df_numerical.columns], target_feature, train_indexes, test_indexes)
 
 plt.show()
