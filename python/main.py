@@ -19,6 +19,7 @@ from sklearn.cluster import KMeans
 from sklearn import tree
 from sklearn import svm
 from sklearn import linear_model
+from sklearn.neural_network import MLPRegressor
 
 import umap
 
@@ -66,13 +67,17 @@ def display_sell_price(ax):
 
 
 ######################################################################
-# plot a column values vs the values of the target
+# plot a column values vs the values of the target feature
 ######################################################################
-def plot_col_vs_target(dataframe, col, target_feature):
-    df_temp = dataframe[[col, target_feature]]
+def plot_feature_vs_target(ax, dataframe, feature, target_feature):
+    
+    # y axis in scientific notation
+    ax.ticklabel_format(axis='y', style='sci', scilimits=(0, 0), useMathText=True)
+
+    df_temp = dataframe[[feature, target_feature]]
     df_temp = df_temp.dropna()
-    plt.scatter(df_temp[col], df_temp[target_feature], marker = 'x')
-    plt.title(col + ' vs SalePrice')
+    ax.scatter(df_temp[feature], df_temp[target_feature], marker = 'x')
+    ax.set_title(feature + ' vs SalePrice')
 
 
 ######################################################################
@@ -206,7 +211,7 @@ def plot_prediction_error(ax, Y, Y_pred):
 
     ax.set_title('SalePrice: gt vs predicted')
 
-    # x axis in scientific notation
+    # axis in scientific notation
     ax.ticklabel_format(axis='both', style='sci', scilimits=(0, 0), useMathText=True)
 
     ax.scatter(Y, Y_pred, marker = 'x')
@@ -232,6 +237,8 @@ def train_predict(model, dataframe, target_feature, ratio):
     normalized_df = df
     normalized_df[prediction_features]=(normalized_df[prediction_features]-normalized_df[prediction_features].mean())/normalized_df[prediction_features].std()
     df = normalized_df
+
+    print(df.shape)
 
     # drop na
     df = df.dropna()
@@ -265,7 +272,7 @@ def train_predict(model, dataframe, target_feature, ratio):
 ######################################################################
 # train a model on a subset of data and predict on the rest
 ######################################################################
-def train_predict_bis(model, dataframe, target_feature, ratio, nan_features):
+def train_predict_bis(model, dataframe, target_feature, ratio):
 
     # df contains only the (numerical) features used for the training/prediction
     # and contains na values
@@ -279,19 +286,89 @@ def train_predict_bis(model, dataframe, target_feature, ratio, nan_features):
     normalized_df[prediction_features]=(normalized_df[prediction_features]-normalized_df[prediction_features].mean())/normalized_df[prediction_features].std()
     df = normalized_df
 
-    # drop na
-    df = df.dropna()
-
     # split indexes into training/testing indexes
     indexes = df.index
     split_index = int(indexes.size*ratio)
     train_indexes = indexes[:split_index]
     test_indexes = indexes[split_index+1:]
 
+    # create a dataframe for the test data and for the ground truth
+    df_gt = df[target_feature].loc[test_indexes]
+    df_predicted = df_gt.copy()
+    df_predicted.loc[:] = 0
+
+    # compute nan features
+    na_features = df.isna().apply(lambda x : ([col for col in x.index if x[col]], x.name), result_type='reduce', axis=1)
+    # print(res.head())
+    # print(set(res.values))
+    paired_features = np.unique([elt[0] for elt in na_features])
+    paired_indexes = [[] for _ in paired_features]
+    for elt in na_features:
+        ind = 0
+        while paired_features[ind] != elt[0]:
+            ind += 1
+        paired_indexes[ind].append(elt[1])
+
+    # print(paired_indexes)
+    # print(paired_features)
+
+    # compute train indexes per nan group features
+    nan_test_indexes = [[] for _ in paired_features]
+
+    for tuple_index in range(len(paired_features)):
+        for ind in paired_indexes[tuple_index]:
+            if ind in test_indexes:
+                nan_test_indexes[tuple_index].append(ind)
+
+    # learn different models given available features
+    for tuple_ind in range(len(paired_features)):
+
+        # print(paired_features[tuple_ind])
+
+        if len(nan_test_indexes[tuple_ind]) == 0:
+            continue
+
+        # train a model on every features excepted the tupled features
+        # test it on the test indexes recorded, where only these features are missing
+        to_exclude = paired_features[tuple_ind]
+
+        new_cols = df.columns.drop(paired_features[tuple_ind])
+
+        # create a training dataframe
+        df_train = df[new_cols].loc[train_indexes].dropna()
+
+        # print(df_train.size)
+
+        # fit the model
+        X = df_train[new_cols.drop(target_feature)]
+        Y = df_train[target_feature]
+        model.fit(X,Y)
+
+        # make the prediction for the corresponding test_indexes
+        test_indexes = nan_test_indexes[tuple_ind]
+
+        # prediction_features = df_temp.columns.drop(target_feature)
+
+        # predict on the test set
+        X_test = df[new_cols.drop(target_feature)].loc[test_indexes]
+        df_predicted.loc[test_indexes] = model.predict(X_test) 
+
+    # do not feed log with invalid values
+    df_predicted = df_predicted.apply(np.abs)
+
+    # compute the error
+    test_error = error(df_gt, df_predicted)
+    print(test_error)
+
+    # plot the prediction
+    ax = plt.subplot(2,2,3)
+    plot_prediction_error(ax, df_gt, df_predicted)
+
+
     return
 
 
-# consider 0 as missing values: EnclosedPorch, BsmtFinSF2, 3SsnPorch, PoolArea, ScreenPorch, BsmtUnfSF (few), OpenPorchSF, 22ndFlrSF, WoodDeckSF, BsmtFinSF1, YearRemodAdd, TotalBsmtSF, GarageArea
+# consider 0 as missing values: EnclosedPorch, BsmtFinSF2, 3SsnPorch, PoolArea, ScreenPorch, BsmtUnfSF (few), OpenPorchSF, 2ndFlrSF, WoodDeckSF, BsmtFinSF1, YearRemodAdd, TotalBsmtSF, GarageArea
 # create categorical variables when few values: KitchenAbvGr, LowQualFinSF, MiscVal, BsmtHalfBath, BsmtFullBath, HalfBath, Fireplaces, FullBath
 # categorical with a lot of values: OverallCond (~), YrSold, MoSold, BedroomAbvGr, TotRmsAbvGrd, GarageCars (~)
 
@@ -302,6 +379,8 @@ def train_predict_bis(model, dataframe, target_feature, ratio, nan_features):
 # Also: try some visualisation/clustering through UMAP !!!! :D
 
 # Interrogation: standardisation: dot it several time or only once on all data ? and std for target feature ?
+
+np.random.seed(42)
 
 df = pd.read_csv('data/train.csv')
 
@@ -352,41 +431,46 @@ target_feature = df_numerical.columns[-1]
 print('target feature: ' + target_feature)
 
 
-# compute list of features sharing na values on the same rows
-df_numerical_na = df_numerical.isna()
-# print(df_numerical_na.head())
-res = df_numerical_na.apply(lambda x : ([col for col in x.index if x[col]], x.name), result_type='reduce', axis=1)
-# print(res.head())
-# print(set(res.values))
-paired_features = np.unique([elt[0] for elt in res])
-paired_indexes = [[] for _ in paired_features]
-for elt in res:
-    ind = 0
-    while paired_features[ind] != elt[0]:
-        ind += 1
-    paired_indexes[ind].append(elt[1])
-sizes = [ len(elt) for elt in paired_indexes]
-# print(paired_indexes)
-print(paired_features)
-print(sizes)
-# print(np.unique(paired_features))
-# take the corresponding indexes for each tuple
+
 
 # how to proceed ?
 # - learn all the features that can be learned when there is no missing data
 # - when there are missing data, create an alternative dataset without the missing column, train on the dataset (where it is possible) and predict only these features
 # - alternatively we couls remove the features from the whole training set and learn everything at once
 
+# To start with: keep lot frontage (exclude from training indexes all lines with na on lot frontage if target feature is not lotfrontage)
 
 # plot data for SalePrice only (boxplot and scatter plot)
 ax = plt.subplot(2,2,1)
 display_sell_price(ax)
 
 
-# plot a categorical variable
+
+# plot_feature_vs_target(ax, df, 'LotFrontage', target_feature)
+zeros_num = ['BsmtFinSF2', 'BsmtUnfSF', 'OpenPorchSF', '2ndFlrSF', 'WoodDeckSF', 'BsmtFinSF1', 'TotalBsmtSF', 'GarageArea'] # 'YearRemodAdd'
+# consider removing: '3SsnPorch', 'PoolArea'
+
+to_remove = ['3SsnPorch', 'PoolArea', 'EnclosedPorch', 'ScreenPorch']
+# col = df_numerical.columns.drop(to_remove)
+# df_numerical = df_numerical[col]
+
+# plot a numerical feature
 ax = plt.subplot(2,2,2)
+plot_feature_vs_target(ax, df, zeros_num[0], target_feature)
+
+# when this is done, the training set is too small
+# so select only the most relevant one
+# for elt in zeros_num:
+#   df_numerical[elt] = df_numerical[elt].apply(lambda x : np.nan if x <= 1e-4 else x)
+
+# df_numerical[zeros_num[0]] = df_numerical[zeros_num[0]].apply(lambda x : np.nan if x <= 1e-4 else x)
+
+
+# plot a categorical feature
+ax = plt.subplot(2,2,4)
 # display_categorical_feature(ax, df, cat_features[1], target_feature, mean_sort=False)
 display_categorical_feature(ax, df, 'MSSubClass', target_feature, mean_sort=False)
+
 
 # display a UMAP
 # ax = plt.subplot(2,2,3)
@@ -401,7 +485,11 @@ display_categorical_feature(ax, df, 'MSSubClass', target_feature, mean_sort=Fals
 # Linear model
 clf = linear_model.LinearRegression()
 
+# Neural Network
+# clf = MLPRegressor(activation='tanh', solver='sgd', hidden_layer_sizes=(5, 10), max_iter=10000)
+
 # train and predict
-train_predict(clf, df_numerical, target_feature, 0.5)
+# train_predict(clf, df_numerical, target_feature, 0.5)
+train_predict_bis(clf, df_numerical, target_feature, 0.5)
 
 plt.show()
