@@ -232,6 +232,9 @@ def train_predict(model, dataframe, target_feature, ratio):
 
     df = dataframe.copy()
 
+    # scale the target for the neural networks
+    df[target_feature] = df[target_feature].apply(lambda x: x*1e-5)
+
     prediction_features = df.columns.drop(target_feature)
 
     # normalization of tha data
@@ -281,6 +284,9 @@ def train_predict_bis(model, dataframe, target_feature, ratio):
     df = dataframe.copy()
 
     prediction_features = df.columns.drop(target_feature)
+
+    # scale the target for the neural networks
+    # df[target_feature] = df[target_feature].apply(lambda x: x*1e-5)
 
     # normalization of tha data
     normalized_df = df
@@ -368,6 +374,84 @@ def train_predict_bis(model, dataframe, target_feature, ratio):
 
     return
 
+######################################################################
+# train and rpedict a model on all the samples
+######################################################################
+def train_predict_overfit(model, dataframe, target_feature):
+
+    # df contains only the (numerical) features used for the training/prediction
+    # and contains na values
+
+    df = dataframe.copy()
+
+    # scale the target for the neural networks
+    df[target_feature] = df[target_feature].apply(lambda x: x*1e-5)
+
+    prediction_features = df.columns.drop(target_feature)
+
+    # normalization of tha data
+    normalized_df = df
+    normalized_df[prediction_features]=(normalized_df[prediction_features]-normalized_df[prediction_features].mean())/normalized_df[prediction_features].std()
+    df = normalized_df
+
+    # create a dataframe for the test data and for the ground truth
+    df_gt = df[target_feature]
+    df_predicted = df_gt.copy()
+    df_predicted.loc[:] = 0
+
+    # compute nan features
+    na_features = df.isna().apply(lambda x : ([col for col in x.index if x[col]], x.name), result_type='reduce', axis=1)
+
+    paired_features = np.unique([elt[0] for elt in na_features])
+    paired_indexes = [[] for _ in paired_features]
+    for elt in na_features:
+        ind = 0
+        while paired_features[ind] != elt[0]:
+            ind += 1
+        paired_indexes[ind].append(elt[1])
+
+    # learn different models given available features
+    for tuple_ind in range(len(paired_features)):
+
+        # print(paired_features[tuple_ind])
+
+        if len(paired_indexes[tuple_ind]) == 0:
+            continue
+
+        new_cols = df.columns.drop(paired_features[tuple_ind])
+
+        # create a training dataframe
+        df_train = df[new_cols].dropna()
+
+        # print(df_train.size)
+
+        # fit the model
+        X = df_train[new_cols.drop(target_feature)]
+        Y = df_train[target_feature]
+        model.fit(X,Y)
+
+        # make the prediction for the corresponding test_indexes
+        test_indexes = paired_indexes[tuple_ind]
+
+        # prediction_features = df_temp.columns.drop(target_feature)
+
+        # predict on the test set
+        X_test = df[new_cols.drop(target_feature)].loc[test_indexes]
+        df_predicted.loc[test_indexes] = model.predict(X_test) 
+
+    # do not feed log with invalid values
+    # df_predicted = df_predicted.apply(np.abs)
+
+    # compute the error
+    test_error = error(df_gt, df_predicted)
+    print(test_error)
+
+    # plot the prediction
+    ax = plt.subplot(2,2,3)
+    plot_prediction_error(ax, df_gt, df_predicted)
+
+
+    return
 
 ######################################################################
 # train a model for the final submission
@@ -448,7 +532,7 @@ def train_predict_final(model, dataframe, target_feature, train_indexes, test_in
 
     # save the result
     df_res = df[target_feature][test_indexes]
-    df_res.to_csv('prediction_gb.csv', header=True)
+    df_res.to_csv('prediction_gb_cat.csv', header=True)
 
     return
 
@@ -488,7 +572,7 @@ print('test set size: ' + str(len(df_test)))
 
 train_indexes = df.index
 test_indexes = df_test.index
-# df_complete = df.append(df_test, sort=False)
+df_complete = df.append(df_test, sort=False)
 
 # list of features
 features = df.columns.copy()
@@ -500,11 +584,12 @@ df_numerical.columns
 # Hold on, 'MSSubClass' is also a categorical variable -> but prediction better on linear model when interpreted as numerical
 df_numerical = df_numerical.drop('MSSubClass', axis=1)
 # not sure for: OverallQual, OverallCond, MoSold, YrSold
-df_numerical = df_numerical.drop(['OverallQual', 'OverallCond', 'MoSold', 'YrSold'], axis=1)
+df_numerical = df_numerical.drop(['MoSold', 'YrSold'], axis=1)
+# df_numerical = df_numerical.drop(['OverallQual', 'OverallCond', 'MoSold', 'YrSold'], axis=1)
 df_numerical = df_numerical.drop(['YearBuilt', 'YearRemodAdd'], axis=1)
 
-# remove numerical features that have too many missing data
-df_numerical = df_numerical.drop(['3SsnPorch', 'PoolArea', 'EnclosedPorch', 'ScreenPorch'], axis=1)
+# remove numerical features that have too many missing data (vales 0)
+# df_numerical = df_numerical.drop(['3SsnPorch', 'PoolArea', 'EnclosedPorch', 'ScreenPorch'], axis=1)
 
 # Numerical features
 # print('numerical variables: ')
@@ -546,7 +631,7 @@ to_remove = ['3SsnPorch', 'PoolArea', 'EnclosedPorch', 'ScreenPorch']
 
 # plot a numerical feature
 ax = plt.subplot(2,2,2)
-plot_feature_vs_target(ax, df, zeros_num[0], target_feature)
+plot_feature_vs_target(ax, df, zeros_num[2], target_feature)
 
 # when this is done, the training set is too small
 # so select only the most relevant one
@@ -558,9 +643,11 @@ plot_feature_vs_target(ax, df, zeros_num[0], target_feature)
 
 # plot a categorical feature
 ax = plt.subplot(2,2,4)
-# display_categorical_feature(ax, df, cat_features[1], target_feature, mean_sort=False)
-display_categorical_feature(ax, df, 'MSSubClass', target_feature, mean_sort=False)
+display_categorical_feature(ax, df, cat_features[14], target_feature, mean_sort=False)
+# display_categorical_feature(ax, df, 'MSSubClass', target_feature, mean_sort=False)
 
+# important categorical variables
+# cat_features[9], cat_features[13]
 
 # display a UMAP
 # ax = plt.subplot(2,2,3)
@@ -570,20 +657,22 @@ display_categorical_feature(ax, df, 'MSSubClass', target_feature, mean_sort=Fals
 # clf = tree.DecisionTreeRegressor(criterion='mse')
 
 # Support Vector Machine
-# clf = svm.SVR(kernel='rbf', C=100, gamma=0.1, epsilon=.1)
+# clf = svm.SVR(kernel='rbf', C=300, gamma=0.1, epsilon=.1)
 
 # Linear model
 # clf = linear_model.LinearRegression()
 
 # Gradient Boosting
-clf = GradientBoostingRegressor(loss='ls', n_estimators=500, max_depth=2, learning_rate=.05)
+clf = GradientBoostingRegressor(loss='ls', n_estimators=500, max_depth=4, learning_rate=.01)
 
-# Neural Network
-# clf = MLPRegressor(activation='tanh', solver='sgd', hidden_layer_sizes=(5, 10), max_iter=10000)
+# Neural Network (Multi Layer Perceptron)
+# overfitting with relu, lbfgs, (50, 100, 50), max_iter=1000
+# clf = MLPRegressor(activation='relu', solver='sgd', hidden_layer_sizes=(400, 100, 300), max_iter=1000)
 
 # train and predict
 # train_predict(clf, df_numerical, target_feature, 0.5)
-train_predict_bis(clf, df_numerical, target_feature, 0.5)
-# train_predict_final(clf, df_complete[df_numerical.columns], target_feature, train_indexes, test_indexes)
+# train_predict_bis(clf, df_numerical, target_feature, 0.5)
+# train_predict_overfit(clf, df_numerical, target_feature)
+train_predict_final(clf, df_complete[df_numerical.columns], target_feature, train_indexes, test_indexes)
 
 plt.show()
